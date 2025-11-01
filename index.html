@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>编程答题系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      /* 再次增大文字和调整间距 */
+      .input-prefix {
+        @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none text-xl w-12;
+      }
+      .input-with-prefix {
+        @apply pl-16; /* 增加左内边距以适应更大的前缀 */
+      }
+      .record-item {
+        @apply border-l-4 p-4 mb-3 rounded-r transition-all;
+      }
+      .correct {
+        @apply border-green-500 bg-green-50;
+      }
+      .incorrect {
+        @apply border-red-500 bg-red-50;
+      }
+      .fullscreen-modal {
+        @apply fixed inset-0 bg-white z-50 overflow-auto p-4 md:p-8;
+      }
+      .active-btn {
+        @apply bg-blue-600 text-white hover:bg-blue-600;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+  <!-- 开始界面 -->
+  <div id="start-screen" class="text-center">
+    <h1 class="text-4xl font-bold mb-4">编程思维挑战</h1>
+    <p class="text-gray-600 mb-8">准备好后，点击下方按钮开始答题</p>
+    <button id="start-btn" class="px-8 py-4 bg-blue-500 text-white text-xl rounded-lg hover:bg-blue-600 transition-colors shadow-lg">
+      开始答题
+    </button>
+  </div>
+
+  <!-- 答题区域 (默认隐藏) -->
+  <div id="quiz-area" class="w-full h-full flex-grow flex flex-col hidden">
+    <!-- ================= 关键修改点 1: 增加 ID 以便 JS 控制 ================= -->
+    <div id="quiz-header" class="w-full max-w-3xl mx-auto flex justify-center items-center my-4 px-4">
+      <div class="flex justify-center gap-4">
+        <button id="scratch-btn" class="px-6 py-3 border-2 border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+          Scratch
+        </button>
+        <button id="python-btn" class="px-6 py-3 border-2 border-blue-600 active-btn rounded-lg transition-colors">
+          Python
+        </button>
+      </div>
+    </div>
+
+    <!-- 图片和输入框的整体容器 (恢复原始居中对齐) -->
+    <div id="quiz-body-container" class="flex-grow flex items-center justify-center w-full">
+      <!-- 容器 (恢复原始 max-w-3xl) -->
+      <div id="quiz-content-wrapper" class="w-full max-w-3xl flex flex-col items-center md:items-end">
+        
+        <!-- 图片容器 -->
+        <div class="w-full aspect-video bg-white rounded-xl shadow-md flex items-center justify-center overflow-hidden">
+          <img id="scratch-img" src="" alt="Scratch题目" class="w-full h-full object-contain hidden">
+          <img id="python-img" src="" alt="Python题目" class="w-full h-full object-contain p-6">
+        </div>
+
+        <!-- 答题框 -->
+        <div id="input-box" class="mt-6 w-full max-w-md">
+          <!-- 输入框动态生成 -->
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 学生答题记录（全屏显示）(恢复原始 max-w-3xl) -->
+  <div id="finish-modal" class="fullscreen-modal hidden">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-6 text-center">你的答题记录</h2>
+      
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+          <div>
+            <div class="text-sm text-gray-500">学生ID</div>
+            <div class="font-semibold" id="student-id"></div>
+          </div>
+          <div>
+            <div class="text-sm text-gray-500">总用时</div>
+            <div class="font-semibold" id="total-time"></div>
+          </div>
+          <div>
+            <div class="text-sm text-gray-500">正确率</div>
+            <div class="font-semibold" id="correct-rate"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div>
+        <h3 class="font-bold text-lg mb-3">答题详情：</h3>
+        <div id="my-records" class="space-y-4"></div>
+      </div>
+      
+      <div class="flex justify-center gap-4 mt-8">
+        <button id="restart-btn" class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+          重新答题
+        </button>
+        <button id="view-records-btn" class="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors">
+          查看所有记录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 所有学生记录面板 (恢复原始 max-w-3xl) -->
+  <div id="records-modal" class="fullscreen-modal hidden">
+    <div class="max-w-3xl mx-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">所有学生答题记录</h2>
+        <div class="flex items-center gap-4">
+          <button id="clear-records-btn" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm">
+            清空所有记录
+          </button>
+          <button id="close-records" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+        </div>
+      </div>
+      
+      <div id="all-records" class="space-y-8">
+        <div class="text-center text-gray-500 py-10">暂无记录</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 题目配置
+    const questions = [
+      { scratchImg: 'image/Scratch/Q1.png', pythonImg: 'image/Python/Q1.png', answer: { a: '4' }, type: 'single_a' },
+      { scratchImg: 'image/Scratch/Q2.png', pythonImg: 'image/Python/Q2.png', answer: { a: '8' }, type: 'single_a' },
+      { scratchImg: 'image/Scratch/Q3.png', pythonImg: 'image/Python/Q3.png', answer: { b: '8' }, type: 'single_b' },
+      { scratchImg: 'image/Scratch/Q4.png', pythonImg: 'image/Python/Q4.png', answer: { b: '10' }, type: 'single_b' },
+      { scratchImg: 'image/Scratch/Q5.png', pythonImg: 'image/Python/Q5.png', answer: { b: '6' }, type: 'single_b' },
+      { scratchImg: 'image/Scratch/Q6.png', pythonImg: 'image/Python/Q6.png', answer: { b: '6' }, type: 'single_b' }
+    ];
+
+    // 全局状态
+    let currentQ = 0;
+    let currentType = 'python';
+    let startTime;
+    let quizStartTime;
+    let studentAnswers = [];
+    let currentQuestionSwitchInfo = {};
+    let studentId;
+    let questionTimer;
+
+    // DOM元素
+    const startScreen = document.getElementById('start-screen');
+    const startBtn = document.getElementById('start-btn');
+    const quizArea = document.getElementById('quiz-area');
+    const scratchBtn = document.getElementById('scratch-btn');
+    const pythonBtn = document.getElementById('python-btn');
+    const scratchImg = document.getElementById('scratch-img');
+    const pythonImg = document.getElementById('python-img');
+    const inputBox = document.getElementById('input-box');
+    const finishModal = document.getElementById('finish-modal');
+    const recordsModal = document.getElementById('records-modal');
+    const myRecords = document.getElementById('my-records');
+    const studentIdEl = document.getElementById('student-id');
+    const totalTimeEl = document.getElementById('total-time');
+    const correctRateEl = document.getElementById('correct-rate');
+    const allRecords = document.getElementById('all-records');
+    const clearRecordsBtn = document.getElementById('clear-records-btn');
+    
+    // ================= 关键修改点 2: 获取需要动态修改的布局元素 =================
+    const quizHeader = document.getElementById('quiz-header');
+    const quizBodyContainer = document.getElementById('quiz-body-container');
+    const quizContentWrapper = document.getElementById('quiz-content-wrapper');
+
+
+    function generateNewStudentId() {
+      let lastId = parseInt(localStorage.getItem('lastStudentId') || '0');
+      let newId = lastId + 1;
+      localStorage.setItem('lastStudentId', newId);
+      return newId.toString();
+    }
+    
+    function startTimer() {
+      let timeLeft = 60;
+      if (questionTimer) {
+        clearInterval(questionTimer);
+      }
+      questionTimer = setInterval(() => {
+        timeLeft--;
+        if (timeLeft <= 0) {
+          clearInterval(questionTimer);
+          submitAnswer(true);
+        }
+      }, 1000);
+    }
+
+    function initQuestion(qIndex) {
+      scratchImg.src = questions[qIndex].scratchImg;
+      pythonImg.src = questions[qIndex].pythonImg;
+      
+      if (currentType === 'python') {
+        pythonImg.classList.remove('hidden');
+        scratchImg.classList.add('hidden');
+      } else {
+        scratchImg.classList.remove('hidden');
+        pythonImg.classList.add('hidden');
+      }
+      
+      createInput(questions[qIndex].type);
+      
+      currentQuestionSwitchInfo = { count: 0, firstSwitchTime: null, firstSwitchFrom: null, firstSwitchTo: null };
+      
+      startTime = new Date();
+      startTimer();
+    }
+
+    function createInput(type) {
+      inputBox.innerHTML = '';
+      if (type === 'single_a') {
+        inputBox.innerHTML = `
+          <div class="relative">
+            <span class="input-prefix">a=</span>
+            <input type="text" id="ans-a" class="w-full py-4 px-5 border-2 border-gray-300 rounded-lg input-with-prefix focus:border-blue-500 focus:outline-none text-xl" placeholder="输入答案按Enter提交">
+          </div>
+        `;
+        document.getElementById('ans-a').addEventListener('keydown', (e) => e.key === 'Enter' && submitAnswer());
+        document.getElementById('ans-a').focus();
+      } else if (type === 'single_b') {
+        inputBox.innerHTML = `
+          <div class="relative">
+            <span class="input-prefix">b=</span>
+            <input type="text" id="ans-b" class="w-full py-4 px-5 border-2 border-gray-300 rounded-lg input-with-prefix focus:border-blue-500 focus:outline-none text-xl" placeholder="输入答案按Enter提交">
+          </div>
+        `;
+        document.getElementById('ans-b').addEventListener('keydown', (e) => e.key === 'Enter' && submitAnswer());
+        document.getElementById('ans-b').focus();
+      }
+    }
+
+    // ================= 关键修改点 3: 创建一个函数来动态改变布局 =================
+    function setQuizLayout(viewType) {
+        if (viewType === 'scratch') {
+            // Scratch 视图: 放大、靠上
+            quizHeader.classList.remove('max-w-3xl');
+            quizHeader.classList.add('max-w-4xl');
+            quizBodyContainer.classList.remove('items-center');
+            quizBodyContainer.classList.add('items-start', 'pt-8');
+            quizContentWrapper.classList.remove('max-w-3xl');
+            quizContentWrapper.classList.add('max-w-4xl');
+            inputBox.classList.add('hidden');
+        } else { // 'python' or default
+            // Python 视图: 恢复原始布局
+            quizHeader.classList.remove('max-w-4xl');
+            quizHeader.classList.add('max-w-3xl');
+            quizBodyContainer.classList.remove('items-start', 'pt-8');
+            quizBodyContainer.classList.add('items-center');
+            quizContentWrapper.classList.remove('max-w-4xl');
+            quizContentWrapper.classList.add('max-w-3xl');
+            inputBox.classList.remove('hidden');
+        }
+    }
+
+    function switchType(newType) {
+      if (newType === currentType) return;
+      
+      currentQuestionSwitchInfo.count++;
+      const timeSpent = Math.round((new Date() - startTime) / 1000);
+      
+      if (currentQuestionSwitchInfo.firstSwitchTime === null) {
+        currentQuestionSwitchInfo.firstSwitchTime = timeSpent;
+        currentQuestionSwitchInfo.firstSwitchFrom = currentType;
+        currentQuestionSwitchInfo.firstSwitchTo = newType;
+      }
+      
+      currentType = newType;
+      if (newType === 'python') {
+        pythonImg.classList.remove('hidden');
+        scratchImg.classList.add('hidden');
+        pythonBtn.classList.add('active-btn');
+        scratchBtn.classList.remove('active-btn');
+      } else { // newType === 'scratch'
+        scratchImg.classList.remove('hidden');
+        pythonImg.classList.add('hidden');
+        scratchBtn.classList.add('active-btn');
+        pythonBtn.classList.remove('active-btn');
+      }
+      // 调用布局函数
+      setQuizLayout(newType);
+    }
+
+    function submitAnswer(isAutoSubmit = false) {
+      clearInterval(questionTimer);
+
+      const qData = questions[currentQ];
+      let userAns = {};
+      let isCorrect = true;
+
+      if (qData.type === 'single_a') {
+        userAns.a = document.getElementById('ans-a').value.trim();
+        if (!isAutoSubmit && userAns.a === '') return;
+        isCorrect = userAns.a === qData.answer.a;
+        if (isAutoSubmit && userAns.a === '') isCorrect = false;
+      } else if (qData.type === 'single_b') {
+        userAns.b = document.getElementById('ans-b').value.trim();
+        if (!isAutoSubmit && userAns.b === '') return;
+        isCorrect = userAns.b === qData.answer.b;
+        if (isAutoSubmit && userAns.b === '') isCorrect = false;
+      }
+      
+      const timeSpent = isAutoSubmit ? 60 : Math.round((new Date() - startTime) / 1000);
+      studentAnswers.push({
+        qIndex: currentQ + 1, userAns, correctAns: qData.answer, isCorrect, timeSpent, type: qData.type, lastViewType: currentType,
+        switchCount: currentQuestionSwitchInfo.count, firstSwitchTime: currentQuestionSwitchInfo.firstSwitchTime,
+        firstSwitchFrom: currentQuestionSwitchInfo.firstSwitchFrom, firstSwitchTo: currentQuestionSwitchInfo.firstSwitchTo
+      });
+
+      currentQ++;
+      if (currentQ < questions.length) {
+        const imgContainer = document.querySelector('.aspect-video');
+        imgContainer.classList.add('opacity-0', 'scale-95', 'transition-all', 'duration-300');
+        setTimeout(() => {
+          initQuestion(currentQ);
+          imgContainer.classList.remove('opacity-0', 'scale-95');
+        }, 300);
+      } else {
+        quizArea.classList.add('hidden');
+        saveRecord();
+        showMyRecords();
+        finishModal.classList.remove('hidden');
+      }
+    }
+
+    function formatUserAnswerText(ans) {
+      if (ans.type === 'single_a') {
+        return `a=${ans.userAns.a || '(未作答)'}`;
+      } else if (ans.type === 'single_b') {
+        return `b=${ans.userAns.b || '(未作答)'}`;
+      }
+      return 'N/A';
+    }
+
+    function formatCorrectAnswerText(ans) {
+      if (ans.type === 'single_a') {
+        return `正确答案：a=${ans.correctAns.a}`;
+      } else if (ans.type === 'single_b') {
+        return `正确答案：b=${ans.correctAns.b}`;
+      }
+      return '';
+    }
+
+    function showMyRecords() {
+      studentIdEl.textContent = studentId;
+      const totalTime = Math.round((new Date() - quizStartTime) / 1000);
+      totalTimeEl.textContent = formatTime(totalTime);
+      const correctCount = studentAnswers.filter(ans => ans.isCorrect).length;
+      correctRateEl.textContent = `${correctCount}/${questions.length} (${Math.round(correctCount / questions.length * 100)}%)`;
+      
+      myRecords.innerHTML = studentAnswers.map(ans => {
+        const userAnsText = formatUserAnswerText(ans);
+        const correctAnsText = formatCorrectAnswerText(ans);
+        let switchInfoHtml = ans.switchCount === 0 
+          ? '<div class="text-sm text-gray-500">未切换题目类型</div>'
+          : `<div class="text-sm text-gray-500">切换：${ans.switchCount}次, 首次于${ans.firstSwitchTime}秒时从${ans.firstSwitchFrom}切到${ans.firstSwitchTo}</div>`;
+
+        return `
+          <div class="record-item ${ans.isCorrect ? 'correct' : 'incorrect'}">
+            <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
+              <div>
+                <span class="font-medium text-lg">第${ans.qIndex}题</span>
+                <div class="mt-1">你的答案：<span class="font-semibold">${userAnsText}</span></div>
+                <div class="text-sm text-gray-500 mt-1">最后查看：${ans.lastViewType}</div>
+                ${switchInfoHtml}
+                ${!ans.isCorrect ? `<div class="text-red-600 mt-1">${correctAnsText}</div>` : ''}
+              </div>
+              <div class="text-lg text-right">
+                <div>总用时：${ans.timeSpent}秒</div>
+                <div class="${ans.isCorrect ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}">${ans.isCorrect ? '正确' : '错误'}</div>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function saveRecord() {
+      const totalTime = Math.round((new Date() - quizStartTime) / 1000);
+      const correctCount = studentAnswers.filter(ans => ans.isCorrect).length;
+      const record = { studentId, completedAt: new Date().toLocaleString(), totalTime, correctCount, answers: studentAnswers };
+      const historyRecords = JSON.parse(localStorage.getItem('codingQuizRecords') || '[]');
+      historyRecords.push(record);
+      localStorage.setItem('codingQuizRecords', JSON.stringify(historyRecords));
+    }
+
+    function showAllRecords() {
+      const historyRecords = JSON.parse(localStorage.getItem('codingQuizRecords') || '[]');
+      if (historyRecords.length === 0) {
+        allRecords.innerHTML = '<div class="text-center text-gray-500 py-10">暂无记录</div>';
+        return;
+      }
+      allRecords.innerHTML = historyRecords.reverse().map((record) => `
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+          <div class="bg-gray-50 p-4 border-b border-gray-200">
+            <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+              <div>
+                <span class="font-bold text-lg">学生ID：${record.studentId}</span>
+                <div class="text-gray-500 mt-1">完成时间：${record.completedAt}</div>
+              </div>
+              <div class="grid grid-cols-2 gap-6 text-center">
+                <div><div class="text-sm text-gray-500">总用时</div><div class="font-semibold">${formatTime(record.totalTime)}</div></div>
+                <div><div class="text-sm text-gray-500">正确率</div><div class="font-semibold">${record.correctCount}/${questions.length} (${Math.round(record.correctCount/questions.length*100)}%)</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="p-4 space-y-3">
+            ${record.answers.map(ans => `
+              <div class="record-item ${ans.isCorrect ? 'correct' : 'incorrect'}">
+                <div class="flex flex-col md:flex-row md:justify-between gap-2">
+                  <div>
+                    <span class="font-medium">第${ans.qIndex}题</span>
+                    <div class="mt-1">答案：${formatUserAnswerText(ans)}</div>
+                    <div class="text-sm text-gray-500 mt-1">切换：${ans.switchCount}次 ${ans.firstSwitchTime ? `(首次: ${ans.firstSwitchFrom}→${ans.firstSwitchTo})` : ''}</div>
+                  </div>
+                  <div class="text-right">
+                    <div>用时：${ans.timeSpent}秒</div>
+                    <div class="${ans.isCorrect ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}">${ans.isCorrect ? '正确' : '错误'}</div>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+    }
+
+    function bindEvents() {
+      startBtn.addEventListener('click', () => {
+        studentId = generateNewStudentId();
+        startScreen.classList.add('hidden');
+        quizArea.classList.remove('hidden');
+        quizStartTime = new Date();
+        initQuestion(0);
+        // 确保初始布局是 python 的
+        setQuizLayout('python');
+      });
+
+      scratchBtn.addEventListener('click', () => switchType('scratch'));
+      pythonBtn.addEventListener('click', () => switchType('python'));
+      
+      document.getElementById('restart-btn').addEventListener('click', () => {
+        studentId = generateNewStudentId();
+        currentQ = 0;
+        currentType = 'python';
+        studentAnswers = [];
+        finishModal.classList.add('hidden');
+        quizArea.classList.remove('hidden');
+        pythonBtn.classList.add('active-btn');
+        scratchBtn.classList.remove('active-btn');
+        quizStartTime = new Date();
+        // ================= 关键修改点 4: 重置时确保恢复 Python 布局 =================
+        setQuizLayout('python');
+        initQuestion(currentQ);
+      });
+      
+      document.getElementById('view-records-btn').addEventListener('click', () => {
+        finishModal.classList.add('hidden');
+        showAllRecords();
+        recordsModal.classList.remove('hidden');
+      });
+      
+      document.getElementById('close-records').addEventListener('click', () => {
+        recordsModal.classList.add('hidden');
+        finishModal.classList.remove('hidden');
+      });
+
+      clearRecordsBtn.addEventListener('click', () => {
+        if (confirm('您确定要清空所有学生的答题记录吗？此操作将同时重置学生ID计数器。')) {
+          localStorage.removeItem('codingQuizRecords');
+          localStorage.removeItem('lastStudentId');
+          showAllRecords();
+          alert('所有记录已成功清空，学生ID计数器已重置。');
+        }
+      });
+    }
+
+    // 初始化应用
+    bindEvents();
+  </script>
+</body>
+</html>
