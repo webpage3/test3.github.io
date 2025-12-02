@@ -188,7 +188,7 @@
     }
     
     function startTimer() {
-      let timeLeft = 180; // 改为3分钟（180秒）
+      let timeLeft = 180; // 核心修改：将1分钟（60秒）改为3分钟（180秒）
       if (questionTimer) {
         clearInterval(questionTimer);
       }
@@ -314,7 +314,7 @@
         if (isAutoSubmit && userAns.b === '') isCorrect = false;
       }
       
-      const timeSpent = isAutoSubmit ? 180 : Math.round((new Date() - startTime) / 1000); // 自动提交时记录为3分钟（180秒）
+      const timeSpent = isAutoSubmit ? 180 : Math.round((new Date() - startTime) / 1000); // 核心修改：自动提交时记录为3分钟（180秒）
       studentAnswers.push({
         qIndex: currentQ + 1, userAns, correctAns: qData.answer, isCorrect, timeSpent, type: qData.type, lastViewType: currentType,
         switchCount: currentQuestionSwitchInfo.count, firstSwitchTime: currentQuestionSwitchInfo.firstSwitchTime,
